@@ -52,7 +52,11 @@ echo "=========================================="
 echo "GPU Info:"
 nvidia-smi
 
-export HF_TOKEN="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"
+# Load environment variables from .env file
+if [ -f ../.env ]; then
+    export $(grep -v '^#' ../.env | xargs)
+fi
+
 export HF_HUB_ENABLE_HF_TRANSFER=1
 
 # Run the script
