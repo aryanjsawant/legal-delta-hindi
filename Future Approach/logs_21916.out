@@ -1,0 +1,50 @@
+==========================================
+Starting Job
+Job ID: 21916
+Node: node2
+Working Dir: /home/tanmoyhazra/RLnew
+==========================================
+==========================================
+Environment Info
+Python: /home/tanmoyhazra/.conda/envs/grpo/bin/python
+Python 3.12.13
+Conda Env: grpo
+torch: 2.10.0+cu128
+torch.int1 available: True
+==========================================
+GPU Info:
+Sat Apr 18 18:26:02 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.211.01             Driver Version: 570.211.01     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 NVL                Off |   00000000:01:00.0 Off |                    0 |
+| N/A   87C    P0            204W /  400W |    5482MiB /  95830MiB |     39%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            4394      G   /usr/lib/xorg/Xorg                        4MiB |
+|    0   N/A  N/A         3658289      C   python                                 3668MiB |
+|    0   N/A  N/A         3902028      C   .../envs/torch_gpu310/bin/python       1784MiB |
++-----------------------------------------------------------------------------------------+
+🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
+🦥 Unsloth Zoo will now patch everything to make training faster!
+Unsloth: UnslothBCOTrainer is already patched.
+Unsloth: UnslothCPOTrainer is already patched.
+Unsloth: UnslothDPOTrainer is already patched.
+Unsloth: UnslothGKDTrainer is already patched.
+Unsloth: UnslothIterativeSFTTrainer is already patched.
+Unsloth: UnslothKTOTrainer is already patched.
+Unsloth: UnslothORPOTrainer is already patched.
+Unsloth: UnslothPPOTrainer is already patched.
+Unsloth: UnslothPRMTrainer is already patched.
+Unsloth: UnslothRewardTrainer is already patched.
+Unsloth: UnslothSFTTrainer is already patched.

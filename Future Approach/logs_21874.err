@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/tanmoyhazra/RLnew/src/train_il_tur.py", line 60, in <module>
+    raise e
+  File "/home/tanmoyhazra/RLnew/src/train_il_tur.py", line 50, in <module>
+    model, tokenizer = FastLanguageModel.from_pretrained(
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/tanmoyhazra/.conda/envs/grpo/lib/python3.12/site-packages/unsloth/models/loader.py", line 358, in from_pretrained
+    raise ImportError(
+ImportError: Unsloth: Please install vLLM before enabling `fast_inference`!
+You can do this in a terminal via `pip install vllm`

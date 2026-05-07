@@ -1,0 +1,59 @@
+==========================================
+Starting Job
+Job ID: 21874
+Node: node1
+Working Dir: /home/tanmoyhazra/RLnew
+==========================================
+==========================================
+Environment Info
+Python: /home/tanmoyhazra/.conda/envs/grpo/bin/python
+Python 3.12.13
+Conda Env: grpo
+torch: 2.7.0+cu126
+torch.int1 available: True
+==========================================
+GPU Info:
+Fri Apr 17 11:36:53 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.211.01             Driver Version: 570.211.01     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 NVL                Off |   00000000:01:00.0 Off |                    0 |
+| N/A   89C    P0            176W /  400W |   11667MiB /  95830MiB |     15%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            4000      G   /usr/lib/xorg/Xorg                        4MiB |
+|    0   N/A  N/A         2218568      C   python                                11644MiB |
++-----------------------------------------------------------------------------------------+
+🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
+🦥 Unsloth Zoo will now patch everything to make training faster!
+Unsloth: UnslothAlignPropTrainer is already patched.
+Unsloth: UnslothBCOTrainer is already patched.
+Unsloth: UnslothCPOTrainer is already patched.
+Unsloth: UnslothDDPOTrainer is already patched.
+Unsloth: UnslothDPOTrainer is already patched.
+Unsloth: UnslothGKDTrainer is already patched.
+Unsloth: UnslothGRPOTrainer is already patched.
+Unsloth: UnslothIterativeSFTTrainer is already patched.
+Unsloth: UnslothKTOTrainer is already patched.
+Unsloth: UnslothNashMDTrainer is already patched.
+Unsloth: UnslothOnlineDPOTrainer is already patched.
+Unsloth: UnslothORPOTrainer is already patched.
+Unsloth: UnslothPPOTrainer is already patched.
+Unsloth: UnslothPRMTrainer is already patched.
+Unsloth: UnslothRewardTrainer is already patched.
+Unsloth: UnslothRLOOTrainer is already patched.
+Unsloth: UnslothSFTTrainer is already patched.
+Unsloth: UnslothXPOTrainer is already patched.
+Loading Unsloth Model (Meta-Llama-3.1-8B-Instruct)...
+CRITICAL ERROR loading model: Unsloth: Please install vLLM before enabling `fast_inference`!
+You can do this in a terminal via `pip install vllm`
