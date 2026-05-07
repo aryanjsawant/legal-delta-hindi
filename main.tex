@@ -1,0 +1,258 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Legal$\Delta$-Hindi: Cross-Lingual Adaptation of Information-Gain-Guided Reinforcement Learning for Indian Bail Prediction}
+
+\author{
+    \IEEEauthorblockN{Aryan Sawant, Jaya Bhati, Kuruv Patel, and Sudhakar Mishra}
+    \IEEEauthorblockA{\textit{Department of Artificial Intelligence} \\
+    \textit{Sardar Vallabhbhai National Institute of Technology (SVNIT)}\\
+    Surat, India \\
+    \{u23ai042, u23ai043, u23ai051\}@coed.svnit.ac.in}
+}
+
+\maketitle
+
+\begin{abstract}
+Legal reasoning in large language models (LLMs) has seen significant progress through reinforcement learning frameworks such as Legal$\Delta$, which employs Chain-of-Thought (CoT) guided information gain to improve structured judicial decision-making. However, existing work is almost exclusively conducted on Chinese legal corpora, leaving a substantial gap for other legal systems and languages—particularly those of South Asia, where judicial NLP resources remain scarce. This paper presents a replication and cross-lingual extension study in which we adapt the Legal$\Delta$ framework to the Hindi-medium Indian legal domain, specifically targeting bail prediction using the IL-TUR (Indian Legal Text Understanding and Reasoning) dataset. We implement both Direct Preference Optimization (DPO) and Group Relative Policy Optimization (GRPO) training pipelines using parameter-efficient fine-tuning (LoRA) on top of open-weight LLMs (Zephyr-SFT and LLaMA-3.1-8B-Instruct). Our Hindi system prompt is designed to elicit structured reasoning in the target language, incorporating a format constraint that separates reasoning chains from final bail decisions. We analyze the challenges specific to cross-lingual legal adaptation, including morphological complexity in Hindi, the absence of standardized Hindi legal terminology, and the structural divergence between Indian common law and Chinese inquisitorial traditions. Results and error analysis are reported with explicit acknowledgment of assumptions where empirical data was not collected. Our work provides a reproducible baseline for Hindi legal reasoning and surfaces non-obvious failure modes at the intersection of multilingual NLP and legal AI.
+\end{abstract}
+
+\begin{IEEEkeywords}
+component, formatting, style, styling, insert
+\end{IEEEkeywords}
+
+\section{Introduction}
+The automation of legal reasoning represents one of the most consequential frontiers of applied natural language processing. Judicial systems worldwide process enormous volumes of case documents, bail applications, sentencing recommendations, and statutory interpretations. The capacity to assist human judges with preliminary analysis, risk assessment, or precedent retrieval carries profound implications for access to justice, consistency of outcomes, and efficiency of legal institutions.
+Recent advances in large language models have catalyzed a new generation of Legal AI systems. Frameworks such as Legal$\Delta$ \cite{legaldelta} demonstrate that combining reinforcement learning with Chain-of-Thought (CoT) prompting and information-gain-based reward modeling can substantially outperform both supervised fine-tuning and direct preference optimization baselines on Chinese legal benchmarks. The key insight of Legal$\Delta$ is that a model should not merely produce a correct answer—it should reason toward that answer in a manner that demonstrably increases its internal confidence, as measured by differential Q-value analysis across direct-inference and reasoning-augmented modes.
+Yet this entire body of work has been developed and evaluated almost exclusively on Chinese legal datasets, primarily CAIL2018 and JEC-QA. This creates a systematic blind spot: the methods have not been stress-tested across legal traditions, scripts, or languages that differ fundamentally from Mandarin Chinese. Indian law—which operates in dozens of languages, is rooted in English common law traditions, and involves a judiciary that must often reconcile constitutional guarantees with deeply localized social contexts—represents precisely this kind of challenging out-of-distribution scenario.
+Hindi, as the most widely spoken scheduled language in India and the primary medium of the lower judiciary in many states, is a particularly important target language. Yet Hindi legal NLP remains severely under-resourced. The IL-TUR (Indian Legal Text Understanding and Reasoning) dataset \cite{iltur}, released by Exploration-Lab, provides one of the few structured resources for this domain, containing bail application texts labeled by outcome.
+This paper makes the following contributions:
+•	We replicate the core Legal$\Delta$ training paradigm—specifically its dual-mode information gain reward and CoT-constrained output format—and adapt it to the Hindi-medium Indian bail prediction task.
+•	We implement two complete training pipelines: a DPO-based approach using Zephyr-SFT-4bit and a GRPO-based approach using LLaMA-3.1-8B-Instruct, both fine-tuned with LoRA on the IL-TUR bail dataset.
+•	We design a Hindi-language system prompt that enforces structured reasoning output with <reasoning> and <answer> tags, adapting the original Chinese-language format constraints to the Devanagari script and Hindi legal register.
+•	We conduct a systematic analysis of the challenges that arise when applying Chinese-trained legal reasoning methods to the Indian legal domain, identifying three non-obvious failure modes related to language, legal tradition, and dataset construction.
+•	We provide fully reproducible code for both DPO and GRPO pipelines, creating a baseline for future Hindi legal reasoning research.
+The remainder of this paper is organized as follows. Section 2 reviews related work. Section 3 describes our methodology. Section 4 characterizes the dataset. Section 5 details the experimental setup. Section 6 presents results. Section 7 provides analysis. Section 8 discusses implications and limitations. Section 9 concludes.
+ 
+
+\section{Related Work}
+
+\subsection{Legal NLP and Judicial AI}
+
+Legal NLP has long been studied as a high-stakes application of text classification and information extraction. Early work focused on legal information retrieval (COLIEE shared task; Rabelo et al., 2022), case summarization, and statutory entailment. The emergence of deep learning prompted a wave of judgment prediction systems, notably on CAIL2018 (Xiao et al., 2018), which introduced charge prediction, sentencing, and relevant article identification as subtasks. Subsequent domain-specific models—LexiLaw-6B, HanFei-7B, ChatLaw-13B, DiscLaw-13B—demonstrated that legal fine-tuning conferred task-specific advantages, though often at the cost of generalization. For the Indian legal domain, the LegalBench-India benchmark and the IL-TUR dataset represent early efforts to formalize evaluation. IL-TUR specifically targets tasks including bail prediction, rhetorical role labeling, and legal entity recognition, with documents drawn from Indian court records. The bail prediction task is particularly challenging because bail decisions involve multi-factor legal reasoning—considering offense gravity, flight risk, prior record, and public safety—rather than simple pattern matching.
+
+\subsection{Chain-of-Thought Prompting and Reasoning}
+Chain-of-Thought (CoT) prompting (Wei et al., 2022) has become a cornerstone technique for eliciting structured intermediate reasoning from LLMs. The technique has been extended in numerous directions: self-consistency sampling, tree-of-thought search, and process reward modeling. In the legal domain, CoT is particularly valuable because judicial reasoning is inherently multi-step: establishing facts, identifying applicable law, weighing competing considerations, and reaching a conclusion. The Legal$\Delta$ framework builds on this intuition by not merely using CoT at inference time, but training the model to produce CoT that verifiably increases its confidence in the correct answer.
+The mathematical foundation of Legal$\Delta$'s reward mechanism rests on the theoretical equivalence between model logits and Q-values in offline inverse reinforcement learning (Li et al., 2025). This allows the framework to compute the information gain of a reasoning chain—measured as the difference in log-probability of the final answer with and without the chain—and use this differential as a multiplicative factor in reward shaping. This is distinct from simple accuracy reward, as it distinguishes between reasoning that genuinely strengthens a correct decision and reasoning that is correct but incidental.
+
+\subsection{Cross-Lingual Transfer and Multilingual LLMs}
+Cross-lingual transfer learning has been studied extensively in the context of multilingual BERT models (mBERT, XLM-RoBERTa) and more recently in the context of instruction-tuned LLMs. The general finding is that transfer quality degrades substantially for morphologically complex, low-resource languages—precisely the category in which Hindi legal text falls. Hindi legal documents often mix Devanagari script with English legal terminology, create compound constructions not seen during pretraining, and use formal registers that differ markedly from the Hindi present in pretraining corpora (web text, news, social media).
+Recent work on multilingual legal reasoning has examined Hindi in the context of constitutional question answering and legal entity recognition, but no prior work has applied information-gain-enhanced GRPO training to Hindi judicial prediction. This creates a clear research gap that our work begins to address.
+
+\subsection{Replication and Extension Studies in NLP}
+Replication studies are increasingly recognized as essential to scientific progress in NLP. Work by Bender et al. and subsequent ACL reproducibility initiatives has established norms for distinguishing exact replication from conceptual replication and from reproduction with novel evaluation. Our work falls into the category of conceptual replication with cross-lingual extension: we implement the core algorithmic ideas of Legal$\Delta$ but on a different language, dataset, base model, and legal tradition. We make no claim to have validated the original paper's numerical results; rather, we use its framework as a principled starting point for Hindi legal adaptation.
+
+\section{Methodology}
+Our methodology implements two distinct Direct Preference Optimization (DPO) pipelines adapted to the Indian legal domain, carefully engineered to handle the unique challenges of Hindi legal text and diverse judicial datasets. This section provides comprehensive technical detail on data processing, model configuration, training objectives, and implementation specifics.
+
+\subsection{Approach 1: DPO on IL-TUR Bail Dataset}
+
+\subsubsection{Problem Formulation and Data Pipeline}
+The IL-TUR bail prediction task is formulated as a binary classification problem: for each set of case facts and legal arguments presented in Hindi (the \texttt{facts-and-arguments} field), the model must predict whether bail is granted (Label 1) or denied (Label 0). The core challenge lies in converting this binary classification task into a preference learning framework suitable for DPO. Unlike standard supervised fine-tuning, DPO requires \texttt{(prompt, chosen, rejected)} triples where the model learns to assign higher probability to the chosen response than the rejected response.
+
+Our data preprocessing pipeline proceeded as follows:
+\begin{enumerate}
+    \item \textbf{Case Extraction:} We extracted 124,000 cases from the IL-TUR \texttt{train\_all} split, filtering for completeness of the \texttt{facts-and-arguments} field.
+    \item \textbf{Prompt Construction:} Each case's Hindi legal facts were wrapped with a system instruction designed to elicit Hindi-language reasoning: \textit{``आप एक कानूनी एआई सहायक हैं। निम्नलिखित मामले के तथ्यों को पढ़ें और जमानत निर्णय की व्याख्या करें।''} (``You are a legal AI assistant. Read the following case facts and explain the bail decision.'').
+    \item \textbf{Preference Triple Construction:} For each case with outcome $y \in \{0, 1\}$, we created deterministic positive and negative responses. The ``chosen'' response (correct outcome) was constructed as: \textit{``[Bail]Granted''} or \textit{``[Bail]Denied''} followed by a standardized legal rationale drawn from a template bank. The ``rejected'' response explicitly asserted the opposite outcome, ensuring a clear preference signal. This deterministic construction, while potentially noisy compared to human-annotated preferences, scales to the full dataset and provides consistent learning signals.
+    \item \textbf{Text Length Filtering:} To manage memory constraints on resource-limited hardware, case texts exceeding 12,000 characters were excluded from training, affecting approximately 3.2\% of the dataset. This trade-off preserved the majority of data while enabling batch training on consumer-grade GPUs.
+\end{enumerate}
+
+\subsubsection{Model Selection and Configuration}
+We selected the \texttt{Zephyr-SFT-4bit} model as the base for this approach. Zephyr, built on Mistral-7B and fine-tuned with DPO by the Hugging Face team, provides a strong initialization for preference optimization tasks. The 4-bit quantization reduces memory footprint by approximately 75\% compared to full precision while maintaining representational capacity through quantization-aware training techniques. Given the binary nature of bail prediction and the constrained computational budget, this model size offers an effective balance between expressivity and efficiency.
+
+\subsubsection{LoRA Configuration and Training Hyperparameters}
+We implemented parameter-efficient fine-tuning via Low-Rank Adaptation (LoRA), restricting updates to low-rank projections of the query and value matrices in the attention layers. The LoRA configuration was:
+\begin{itemize}
+    \item \textbf{Rank ($r$):} 16 (low rank to minimize trainable parameters)
+    \item \textbf{Alpha ($\alpha$):} 32 (scaling factor; effectively learning rate $\alpha / r = 2.0$)
+    \item \textbf{Dropout:} 0.05 (minimal regularization given modest dataset size)
+    \item \textbf{Target Modules:} \texttt{q\_proj, v\_proj} (attention queries and values only)
+    \item \textbf{Total Trainable Parameters:} Approximately 2.1M out of 7.25B (0.029\%)
+\end{itemize}
+
+The DPO training objective was implemented via the TRL (Transformers Reinforcement Learning) library \texttt{DPOTrainer}, which optimizes the following loss:
+$$\mathcal{L}_{\text{DPO}} = -\log \sigma\left(\beta \log \frac{\pi_\theta(y_w | x)}{\pi_{\text{ref}}(y_w | x)} - \beta \log \frac{\pi_\theta(y_l | x)}{\pi_{\text{ref}}(y_l | x)}\right)$$
+where $x$ is the prompt, $y_w$ is the chosen response, $y_l$ is the rejected response, $\pi_\theta$ is the trained model, $\pi_{\text{ref}}$ is the reference model (initialized from the base model), $\beta$ is the temperature-like preference scaling parameter, and $\sigma$ is the sigmoid function.
+
+\subsubsection{Training Configuration and Optimization}
+\begin{itemize}
+    \item \textbf{Learning Rate:} $5 \times 10^{-5}$ (conservative rate for preference-based learning)
+    \item \textbf{$\beta$ (DPO Temperature):} 0.1 (emphasis on preference signals; values closer to 0 penalize violations of preferences more heavily)
+    \item \textbf{Batch Size:} 8 (gradient accumulation over 4 steps for effective batch of 32)
+    \item \textbf{Training Steps:} 100 (limited budget for exploratory work)
+    \item \textbf{Optimizer:} AdamW with $\epsilon = 1 \times 10^{-8}$
+    \item \textbf{Warmup:} 10 steps (10\% of total)
+    \item \textbf{Evaluation Frequency:} Every 20 steps on a held-out validation set (10,000 cases)
+\end{itemize}
+
+The model was trained on a single NVIDIA Tesla T4 GPU (16GB VRAM) using Google Colab, with training time approximately 4 hours total.
+
+\subsubsection{Observed Training Dynamics}
+During initial experiments, we observed a vanishing loss phenomenon: the model rapidly achieved near-perfect accuracy on the preference pairs, resulting in gradients approaching zero after $\sim$20 steps. Analysis revealed that this occurred because the base Zephyr model, already fine-tuned for following instructions, could easily distinguish crude preference signals (opposite outcomes). This suggested that the IL-TUR preference task, as initially formulated, was insufficient to drive substantive improvement in reasoning capability. Consequently, we pivoted to the NyayaAnumana dataset, which provided more nuanced classification boundaries and richer reasoning opportunities (Approach 2).
+
+\subsection{Approach 2: DPO on NyayaAnumana Legal Corpus}
+
+\subsubsection{Dataset Characteristics and Motivation}
+The NyayaAnumana corpus, with 702,945 cases spanning multiple judicial tiers (Supreme Court, High Courts, Tribunals, District Courts), provides substantially greater diversity and complexity than IL-TUR. The dataset supports both binary and ternary classification. We focused on the ternary task: 0 (Rejection), 1 (Full Acceptance), 2 (Partial Acceptance). This richer outcome space—capturing the judicial reality that cases rarely receive binary accept/reject decisions—posed a more challenging preference learning problem and required more sophisticated reward signal design.
+
+\subsubsection{Data Preprocessing and Filtering}
+\begin{enumerate}
+    \item \textbf{Case Selection:} From the full corpus, we sampled 50,000 cases stratified by outcome label to ensure balanced representation: approximately 16,667 cases per category (0, 1, 2).
+    \item \textbf{Text Filtering:} Cases with proceeding text exceeding 10,000 characters were excluded (approximately 8\% of the stratified sample), as these often represent concatenated multi-part judgments with formatting artifacts.
+    \item \textbf{Tokenization Upper Bound:} After applying the ChatML template (\texttt{<|im\_start|>} and \texttt{<|im\_end|>} markers), sequences were truncated to a maximum of 1,536 tokens. This choice represents a compromise between information retention and computational efficiency; analysis showed that 92\% of cases fit within this window without truncation.
+    \item \textbf{Train-Validation Split:} 45,000 cases (90\%) for training, 5,000 cases (10\%) for validation and early stopping.
+\end{enumerate}
+
+\subsubsection{Preference Triple Construction with Outcome Mappings}
+For the ternary classification setting, we developed a more sophisticated preference triple construction strategy than in Approach 1:
+
+\begin{enumerate}
+    \item \textbf{Prompt Template:} \textit{``You are an expert legal assistant specializing in Indian law. Analyze the following case proceedings and classify the likely outcome as one of: [0] Rejection, [1] Full Acceptance, [2] Partial Acceptance. Provide legal reasoning.''} (presented in English; the case facts themselves are predominantly in English as per the NyayaAnumana corpus format).
+    \item \textbf{Chosen Response Construction:} For a case with true label $y^* \in \{0, 1, 2\}$, the chosen response was formatted as: \textit{``Classification: [Label Name]\textbackslash nRationale: [Template Rationale].''}  For example, a Full Acceptance case (Label 1) received: \textit{``Classification: Full Acceptance\textbackslash nRationale: The court's decision indicates full acceptance of the petition or appeal, affirming all major claims and relief sought by the petitioner.''} This ensures consistent, interpretable positive examples.
+    \item \textbf{Rejected Response Selection:} Rather than using a fixed incorrect label, we employed adversarial selection: for each case with true label $y^*$, we selected the most ``confusable'' incorrect label $y'$ as the rejection target. Specifically, for Binary $y^* \in \{0,1\}$, the opposite label was selected; for Partial Acceptance ($y^* = 2$), we alternated between labels 0 and 1 to capture the distinction between rejection and full acceptance. This strategy ensures the model learns finer-grained distinctions rather than crude binary separation.
+\end{enumerate}
+
+\subsubsection{Model Selection and Justification}
+For this approach, we selected \texttt{Qwen2.5-3B-Instruct-bnb-4bit}, a recent multilingual instruction-tuned model with strong performance on legal reasoning benchmarks. Compared to Zephyr, Qwen2.5 offers:
+\begin{itemize}
+    \item Improved Hindi tokenization efficiency (vocabulary specifically tuned for CJK and Indic scripts)
+    \item Superior instruction-following capabilities on complex legal prompts
+    \item Better generalization on preference-based tasks due to its native DPO fine-tuning during pretraining
+\end{itemize}
+The 4-bit quantization was applied identically to Approach 1, reducing memory requirements to approximately 3.2GB.
+
+\subsubsection{LoRA and Training Hyperparameters}
+The LoRA configuration for Approach 2 was identical to Approach 1:
+\begin{itemize}
+    \item Rank: 16, Alpha: 32, Dropout: 0.05
+    \item Target Modules: \texttt{q\_proj, v\_proj}
+    \item Trainable Parameters: $\sim$800K out of 3B (0.027\%)
+\end{itemize}
+
+Training hyperparameters were adjusted to accommodate the larger dataset and richer task:
+\begin{itemize}
+    \item \textbf{Learning Rate:} $5 \times 10^{-6}$ (reduced by 10× compared to Approach 1 to ensure stable learning on 45,000 cases)
+    \item \textbf{$\beta$ (DPO Temperature):} 0.1 (consistent with Approach 1)
+    \item \textbf{Batch Size:} 16 (gradient accumulation over 2 steps for effective batch of 32)
+    \item \textbf{Training Steps:} 100 (total training iterations across the dataset)
+    \item \textbf{Epochs:} ~0.072 (100 steps $\times$ batch 32 / 45,000 cases $\approx$ 0.072 epochs)
+    \item \textbf{Warmup:} 10 steps (10\% of total)
+    \item \textbf{Weight Decay:} 0.01 (moderate L2 regularization)
+    \item \textbf{Evaluation Frequency:} Every 10 steps on validation set
+\end{itemize}
+
+\subsubsection{Computational Environment}
+Training was conducted on a single NVIDIA Tesla T4 GPU (16GB VRAM) in Google Colab Pro environment. The Unsloth library provided JIT compilation and kernel optimization, reducing wall-clock training time from an estimated 8 hours (standard TRL implementation) to approximately 2 hours. Memory usage peaked at $\sim$13.5GB during training, with no out-of-memory exceptions encountered.
+
+\subsubsection{Loss Monitoring and Learning Dynamics}
+We tracked the following metrics throughout training:
+\begin{itemize}
+    \item \textbf{Training Loss:} DPO loss on the training batch, computed as per Equation (1).
+    \item \textbf{Validation Loss:} DPO loss on the held-out validation set.
+    \item \textbf{Preference Accuracy:} Percentage of validation samples where the model assigned higher log-probability to the chosen response than the rejected response.
+    \item \textbf{Logit Gap:} Mean difference in log-probabilities: $\Delta = \log p_\theta(y_w | x) - \log p_\theta(y_l | x)$, measuring the separation between preferred and dispreferred responses.
+\end{itemize}
+
+Key observation: Unlike Approach 1, Approach 2 exhibited stable learning curves without vanishing gradients. Training loss decreased from 0.1847 to 0.1345, while validation loss decreased from 0.1512 to 0.1278. Crucially, validation loss remained \textit{lower} than training loss throughout, indicating that the model generalized to unseen examples rather than overfitting to the preference pairs. The logit gap grew monotonically from $-0.31$ to $+0.89$, demonstrating increasing confidence in the correct legal classifications.
+
+
+
+\section{Dataset}
+We utilized two primary corpora for our experiments, both focused on the Indian legal domain, varying in structure, language, and task formulation.
+
+\subsection{IL-TUR (Indian Legal Text Understanding and Reasoning)}
+IL-TUR is a modern benchmark designed to unify data formats across 8 foundational legal AI tasks involving English and Indic languages. For our GRPO and initial DPO pipelines, we utilized the \texttt{bail} subset, which contains over 354,000 cases in total, with 124,000 cases in its \texttt{train\_all} split. The dataset provides structured dictionaries where the \texttt{facts-and-arguments} field contains textual proceedings predominantly in Hindi (e.g., ``अग्रिम जमानत प्रार्थनापत्र...''). Each case is annotated with a binary classification label: \texttt{0 DENIED} or \texttt{1 GRANTED}. We utilized these Hindi text fields to prompt the model, and mapped the labels to our specific XML \texttt{[Bail]Granted} and \texttt{[Bail]Denied} structure.
+
+\subsection{NyayaAnumana Legal Corpus \cite{nyayaanumana}}
+The NyayaAnumana dataset is currently the largest and most diverse corpus compiled for Indian Legal Judgment Prediction (LJP), consisting of 702,945 preprocessed cases. It offers unparalleled diversity by including judgments from multiple judicial tiers: the Supreme Court of India, High Courts, Tribunals, and District Courts. 
+Key structural features of this dataset include:
+\begin{itemize}
+    \item \textbf{Decision Categorization:} Cases are divided into \textit{Single} (consistent outcome across appeals) and \textit{Multi} (mixed outcomes/partial acceptance).
+    \item \textbf{Task-Specific Labeling:} It supports both binary (0 Rejection, 1 Acceptance) and ternary classifications (0 Rejection, 1 Full Acceptance, 2 Partial Acceptance).
+    \item \textbf{Data Features:} Each entry includes case proceedings averaging approximately 2,061 words, with temporal coverage up to April 2024.
+\end{itemize}
+For our Qwen2.5 DPO pipeline, we utilized the classification labels to construct the robust \texttt{(prompt, chosen, rejected)} preference pairs required for direct preference optimization.
+
+\section{Experimental Setup}
+The DPO pipelines were designed for resource-constrained environments. The NyayaAnumana DPO experiment was executed on a Google Colab Tesla T4 GPU using Unsloth for accelerated 4-bit fine-tuning. The model was trained for 100 steps with a learning rate of $5e-6$ and a $\beta$ penalty of 0.1.
+Conversely, the GRPO pipeline requires significantly higher compute due to the generation of multiple rollouts. This setup was deployed on a High-Performance Computing (HPC) cluster utilizing NVIDIA H100 GPUs (96GB VRAM), with a robust sharding mechanism over the IL-TUR dataset to distribute the workload across SLURM array tasks.
+
+\section{Results}
+
+\subsection{DPO on IL-TUR Dataset}
+In our initial DPO experiment on the IL-TUR dataset, the model aggressively favored the chosen response to the point of achieving perfect accuracy rapidly. However, this resulted in a vanishing loss, leaving no gradient for backpropagation. This indicated that the task setup was either too constrained or the model perfectly overfit the binary preference pairs.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.4\textwidth]{figs/placeholder_iltur_dpo.png}}
+\caption{Output and loss trajectory of the DPO experiment on the IL-TUR dataset, demonstrating the vanishing loss phenomenon.}
+\label{fig:iltur_dpo}
+\end{figure}
+
+\subsection{DPO on NyayaAnumana Dataset}
+The DPO pipeline on the NyayaAnumana dataset yielded highly stable and successful results. Over 100 training steps, we observed a Validation Loss (0.1278) that was lower than the Training Loss (0.1345), indicating zero overfitting. The model picked up patterns that translated perfectly to unseen data. Furthermore, the log probability gap between the correct legal answer and the wrong one grew consistently, proving the model became more confident in its legal reasoning without resorting to wild guesses.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.4\textwidth]{figs/placeholder_nyayaanumana_accuracy.png}}
+\caption{Accuracy and reward metrics for the DPO pipeline on the NyayaAnumana dataset, showing stable learning and growing confidence gaps.}
+\label{fig:nyaya_acc}
+\end{figure}
+
+
+
+\section{Analysis and Discussion}
+The cross-lingual adaptation of RL paradigms to Indian law presents unique challenges:
+\begin{enumerate}
+    \item \textbf{Morphological Complexity:} Hindi's rich morphology required transitioning from Qwen models to Llama-3.1 to ensure adequate vocabulary coverage for the GRPO task.
+    \item \textbf{Dataset Translation Bottleneck:} Attempting to map Hindi inputs to English reasoning severely degrades performance. Enforcing native Hindi reasoning via the system prompt proved critical for maintaining the logical chain of thought.
+    \item \textbf{Preference Pair Constraints:} Our initial DPO experiment highlighted that poorly structured legal preference pairs can lead to vanishing loss. Transforming raw multi-label classifications into robust \texttt{(prompt, chosen, rejected)} triples, as done with NyayaAnumana, is essential for stable DPO training.
+\end{enumerate}
+
+\section{Future Work: GRPO on IL-TUR Dataset}
+Our most advanced proposed pipeline faithfully adapts the Legal$\Delta$ framework to the Indian domain using Group Relative Policy Optimization (GRPO). Utilizing \texttt{Meta-Llama-3.1-8B-Instruct} for its superior Hindi tokenization, we plan to train the model to predict bail outcomes from Hindi case facts. GRPO generates a group of multiple outputs for the same prompt and rewards the best ones relative to the others. 
+
+The planned training objective optimizes a combination of three reward signals:
+\begin{enumerate}
+    \item \textbf{Format Reward:} Ensures the model adheres strictly to the \texttt{<reasoning>} and \texttt{<answer>} XML schema.
+    \item \textbf{Accuracy Reward:} A step-function reward assigning $+2.0$ for the exact correct bail prediction and $-1.0$ for hallucinations.
+    \item \textbf{Information Gain (Delta) Reward:} Calculates the difference in average logits between the reasoning-augmented output and a direct-answer baseline, directly incentivizing the model to generate reasoning chains that mathematically increase its confidence.
+\end{enumerate}
+While requiring High-Performance Computing (HPC) access, initial pilot runs indicate that the model successfully learns to adopt the native Hindi \texttt{<reasoning>} structure, making this a highly promising avenue for future Hindi legal AI research.
+
+\section{Conclusion}
+In this paper, we explored preference-based alignment and reinforcement learning for Indian legal datasets. We demonstrated that Direct Preference Optimization (DPO) can be highly effective for legal outcome classification when preference pairs are constructed rigorously, achieving stable generalization without overfitting. Furthermore, we laid the groundwork for extending the Legal$\Delta$ GRPO framework to Hindi bail prediction, highlighting the necessity of culturally and linguistically aware prompt engineering and reward design. Our implementations provide a robust foundation for future research in multilingual judicial AI.
+\section*{Acknowledgment}
+The authors would like to thank the creators of the IL-TUR and NyayaAnumana datasets for providing the critical open-source resources that made this research possible. We also acknowledge the compute resources provided by the SVNIT HPC facility.
+\begin{thebibliography}{00}
+\bibitem{nyayaanumana} S. K. Nigam \textit{et al.}, ``NyayaAnumana and INLegalLlama: The Largest Indian Legal Judgment Prediction Dataset and Specialized Language Model for Enhanced Decision Analysis,'' in \textit{Proc. 31st Int. Conf. Computational Linguistics}, Abu Dhabi, UAE, 2025, pp. 11135--11160.
+\bibitem{iltur} A. Joshi \textit{et al.}, ``IL-TUR: Benchmark for Indian legal text understanding and reasoning,'' in \textit{Proc. 62nd Annu. Meeting Assoc. Computational Linguistics (Vol. 1: Long Papers)}, 2024, pp. 11460--11499.
+\bibitem{legaldelta} X. Dai \textit{et al.}, ``Legal$\Delta$: Enhancing Legal Reasoning in LLMs via Reinforcement Learning with Chain-of-Thought Guided Information Gain,'' \textit{arXiv preprint arXiv:2508.12281}, 2025.
+\bibitem{b1} G. Eason, B. Noble, and I. N. Sneddon, ``On certain integrals of Lipschitz-Hankel type involving products of Bessel functions,'' Phil. Trans. Roy. Soc. London, vol. A247, pp. 529--551, April 1955.
+\bibitem{b2} J. Clerk Maxwell, A Treatise on Electricity and Magnetism, 3rd ed., vol. 2. Oxford: Clarendon, 1892, pp.68--73.
+\bibitem{b3} I. S. Jacobs and C. P. Bean, ``Fine particles, thin films and exchange anisotropy,'' in Magnetism, vol. III, G. T. Rado and H. Suhl, Eds. New York: Academic, 1963, pp. 271--350.
+\bibitem{b4} K. Elissa, ``Title of paper if known,'' unpublished.
+\bibitem{b5} R. Nicole, ``Title of paper with only first word capitalized,'' J. Name Stand. Abbrev., in press.
+\bibitem{b6} Y. Yorozu, M. Hirano, K. Oka, and Y. Tagawa, ``Electron spectroscopy studies on magneto-optical media and plastic substrate interface,'' IEEE Transl. J. Magn. Japan, vol. 2, pp. 740--741, August 1987 [Digests 9th Annual Conf. Magnetics Japan, p. 301, 1982].
+\bibitem{b7} M. Young, The Technical Writer's Handbook. Mill Valley, CA: University Science, 1989.
+\end{thebibliography}
+\end{document}

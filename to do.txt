@@ -1,0 +1,41 @@
+cite nyayanumara dataset:
+@inproceedings{nigam-etal-2025-nyayaanumana,
+    title = "{NyayaAnumana} and {INLegalLlama}: The Largest {I}ndian Legal Judgment Prediction Dataset and Specialized Language Model for Enhanced Decision Analysis",
+    author = "Nigam, Shubham Kumar  and
+      Balaramamahanthi, Deepak Patnaik  and
+      Mishra, Shivam  and
+      Shallum, Noel  and
+      Ghosh, Kripabandhu  and
+      Bhattacharya, Arnab",
+    editor = "Rambow, Owen  and
+      Wanner, Leo  and
+      Apidianaki, Marianna  and
+      Al-Khalifa, Hend  and
+      Eugenio, Barbara Di  and
+      Schockaert, Steven",
+    booktitle = "Proceedings of the 31st International Conference on Computational Linguistics",
+    month = jan,
+    year = "2025",
+    address = "Abu Dhabi, UAE",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2025.coling-main.738/",
+    pages = "11135--11160",
+    abstract = "The integration of artificial intelligence (AI) in legal judgment prediction (LJP) has the potential to transform the legal landscape, particularly in jurisdictions like India, where a significant backlog of cases burdens the legal system. This paper introduces NyayaAnumana, the largest and most diverse corpus of Indian legal cases compiled for LJP, encompassing a total of 7,02,945 preprocessed cases. NyayaAnumana, which combines the words ``Nyaya'' and ``Anumana'' that means ``judgment'' and ``inference'' respectively for most major Indian languages, includes a wide range of cases from the Supreme Court, High Courts, Tribunal Courts, District Courts, and Daily Orders and, thus, provides unparalleled diversity and coverage. Our dataset surpasses existing datasets like PredEx and ILDC, offering a comprehensive foundation for advanced AI research in the legal domain. In addition to the dataset, we present INLegalLlama, a domain-specific generative large language model (LLM) tailored to the intricacies of the Indian legal system. It is developed through a two-phase training approach over a base LLaMa model. First, Indian legal documents are injected using continual pretraining. Second, task-specific supervised finetuning is done. This method allows the model to achieve a deeper understanding of legal contexts. Our experiments demonstrate that incorporating diverse court data significantly boosts model accuracy, achieving approximately 90{\%} F1-score in prediction tasks. INLegalLlama not only improves prediction accuracy but also offers comprehensible explanations, addressing the need for explainability in AI-assisted legal decisions."
+}
+cite il tur dataset:@inproceedings@inproceedings{joshi2024tur,
+  title={IL-TUR: Benchmark for Indian legal text understanding and reasoning},
+  author={Joshi, Abhinav and Paul, Shounak and Sharma, Akshat and Goyal, Pawan and Ghosh, Saptarshi and Modi, Ashutosh},
+  booktitle={Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)},
+  pages={11460--11499},
+  year={2024}
+}
+legal delta:
+@misc{dai2025legaldeltaenhancinglegalreasoning,
+      title={Legal$\Delta$: Enhancing Legal Reasoning in LLMs via Reinforcement Learning with Chain-of-Thought Guided Information Gain}, 
+      author={Xin Dai and Buqiang Xu and Zhenghao Liu and Yukun Yan and Huiyuan Xie and Xiaoyuan Yi and Shuo Wang and Ge Yu},
+      year={2025},
+      eprint={2508.12281},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2508.12281}, 
+}

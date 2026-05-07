@@ -1,0 +1,26 @@
+\n--- Slide 1 ---\n\nPreference-Based Training
+for Legal Bail Prediction
+\nAryan Sawant U23AI042
+Jaya Bhati U23AI043
+Kuruv Patel U23AI051\n\n--- Slide 2 ---\n\nThe Core Architecture & Theory\nLegalDelta is a reinforcement learning framework designed to improve an LLM's legal reasoning capabilities. \nInstead of just teaching the model to output the correct final answer, it trains the model to generate meaningful Chain-of-Thought (CoT) reasoning\n   
+\nIf the reasoning genuinely helps the model arrive at the answer, the information gain is high, and the model receives a higher reward during RL training.\nTASK: Bail prediction; classifying whether bail is Granted or Denied (binary), or Ternary Classification based on case facts and legal arguments from Indian courts.\n\n--- Slide 3 ---\n\nDPO on il_tur dataset\nDPO on nyayaumara dataset\nGRPO on il_tur dataset (Future Work)\nAPPROACHES\n\n--- Slide 4 ---\n\nDPO: Direct Preference Optimization\nAn algorithm for Reinforcement Learning from Human Feedback (RLHF). 
+
+Instead of training a separate "Reward Model" to judge the LLM, DPO uses a dataset of pairs: a Preferred response and a Rejected response.
+
+It forces the model to increase the probability of the preferred answer while decreasing the probability of the rejected one.\nhttps://www.overleaf.com/1422428328nrxrxjrwswdv#19f666\n\n--- Slide 5 ---\n\nGRPO: Group Relative Policy Optimization\nIt generates a group of multiple outputs for the same prompt and rewards the ones that perform best relative to the others. 
+
+It uses "Reward Functions" (code-based rules) to score outputs.
+
+GRPO eliminates the need for a massive "Critic" model, saving huge amounts of VRAM, which is why it works so well with libraries like Unsloth.\n\n--- Slide 6 ---\n\n\nDPO on il_tur dataset
+\nObjective: Use DPO to align the ‘zephyr-sft-bnb-4bit’ model with judicial decisions on the same IL-TUR bail dataset.\nChosen Response: Uses the actual judge's opinion or a correct generic response.\nRejected Response: Acts as the negative constraint by providing the opposite, incorrect legal outcome.\nModel aggressively favoring the chosen response over the rejected one.\nPerfect accuracy and vanishing loss giving no gradient for backpropagation.\n\n--- Slide 7 ---\n\n\n--- Slide 8 ---\n\n\nDPO on nyayaumara dataset
+\nObjective: Use DPO to align the ‘Qwen2.5-3B-Instruct-bnb-4bit’ model with judicial decisions on the nyayaumara bail dataset.\nTransform the raw classification dataset into (prompt, chosen, rejected) preference triples required for DPO\nparameter-efficient fine-tuning: applied LoRA on Qwen2.5-3B-Instruct-bnb-4b. Merge the LoRA adapters into the base model.it
+\nValidation Loss (0.1278) is actually lower than Training Loss (0.1345) -> zero overfitting\n\nAccuracy and Rewards are slightly higher on the validation set, meaning the model is picking up patterns that translate perfectly to unseen data\n\n--- Slide 9 ---\n\nValidation Loss decreased (learning stability) and improved accuracy.
+
+Log probability gap between the correct legal answer and the wrong one is growing; the model is becoming more confident in its legal reasoning
+
+The Logits/chosen and Logits/rejected are very close. This suggests the model isn't making "wild" guesses yet.\n\n--- Slide 10 ---\n\nSetup\n\nNyanaumara dataset\nExploration-Lab/IL-TUR dataset\n\n--- Slide 11 ---\n\n\nGRPO on il_tur dataset\nObjective: Fine-tune Meta-Llama-3.1-8B-Instruct to predict bail outcomes (Granted/Denied) from case facts using the Exploration-Lab/IL-TUR dataset.\nXML Format Reward: Grants positive rewards for strictly adhering to the <reasoning> and <answer> XML tags.\nAccuracy Score: Rewards accurate predictions (+2.0 for correct, -1.0 for hallucinations, 0.5 for format-matching errors).\nInformation Gain Multiplier: Calculates a diversity bonus based on logic differences (LegalDelta formula).\n\n--- Slide 12 ---\n\nKey modifications in GRPO:\nSwaps the previous Qwen-based model for Llama 3.1 8B providing superior bilingual performance
+
+Replaces English/Chinese system prompts with a native Hindi 
+System Prompt
+
+Specialized reward functions (xmlcount and bail_accuracy) to enforce strict formatting and accurate legal outcomes\n\n--- Slide 13 ---\n\nThank you

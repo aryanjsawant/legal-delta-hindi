@@ -1,0 +1,948 @@
+\n--- Page 1 ---\nLegal∆: Enhancing Legal Reasoning in LLMs via Reinforcement Learning with
+Chain-of-Thought Guided Information Gain
+Xin Dai1*, Buqiang Xu1*, Zhenghao Liu1†, Yukun Yan2
+Huiyuan Xie2, Xiaoyuan Yi3, Shuo Wang2, Ge Yu1
+1Department of Computer Science and Technology, Northeastern University, Shenyang, China
+2Department of Computer Science and Technology, Institute for AI, Tsinghua University, Beijing, China
+3Microsoft Research Asia, Beijing, China
+liuzhenghao@mail.neu.edu.cn
+Abstract
+Legal Artificial Intelligence (LegalAI) has achieved notable
+advances in automating judicial decision-making with the
+support of Large Language Models (LLMs). However, ex-
+isting legal LLMs still struggle to generate reliable and
+interpretable reasoning processes. They often default to
+fast-thinking behavior by producing direct answers with-
+out explicit multi-step reasoning, limiting their effective-
+ness in complex legal scenarios that demand rigorous justi-
+fication. To address this challenge, we propose Legal∆, a
+reinforcement learning framework designed to enhance le-
+gal reasoning through chain-of-thought guided information
+gain. During training, Legal ∆employs a dual-mode input
+setup—comprising direct answer and reasoning-augmented
+modes—and maximizes the information gain between them.
+This encourages the model to acquire meaningful reasoning
+patterns rather than generating superficial or redundant ex-
+planations. Legal ∆follows a two-stage approach: (1) distill-
+ing latent reasoning capabilities from a powerful Large Rea-
+soning Model (LRM), DeepSeek-R1, and (2) refining rea-
+soning quality via differential comparisons, combined with
+a multidimensional reward mechanism that assesses both
+structural coherence and legal-domain specificity. Experi-
+mental results on multiple legal reasoning tasks demon-
+strate that Legal ∆outperforms strong baselines in both ac-
+curacy and interpretability. It consistently produces more ro-
+bust and trustworthy legal judgments without relying on la-
+beled preference data. All code and data are available at
+https://github.com/NEUIR/LegalDelta.
+1 Introduction
+The rapid development of LegalAI systems—referring to
+artificial intelligence technologies applied to legal practice
+and judicial processes—is fundamentally reshaping the le-
+gal landscape. By automating complex tasks such as legal
+information extraction (Rabelo et al. 2022), intelligent case
+retrieval (Zeng et al. 2005; Zhang and Dou 2023), judg-
+ment prediction (Liu et al. 2023b), and legal question an-
+swering (Louis, van Dijck, and Spanakis 2024), LegalAI sig-
+nificantly enhances the efficiency and accessibility of legal
+services. These technologies have demonstrated substantial
+*These authors contributed equally.
+†Corresponding author.
+Figure 1: Illustration of Legal ∆. We present how chain-of-
+thought guided information gain works in RLVR.
+value in real-world applications, including contract analysis,
+legal dispute resolution, and regulatory compliance. Given
+these promising developments, recent research has increas-
+ingly turned to Large Language Models (LLMs) as a foun-
+dation for building a more effective legal assistant.
+Recently, researchers have increasingly adopted Rein-
+forcement Learning (RL) frameworks such as Group Rel-
+ative Policy Optimization (GRPO), which enables mod-
+els to learn from feedback and optimize their behavior
+through trial-and-error. Large Reasoning Models (LRMs)
+like QwQ (Team 2025) and DeepSeek-R1 (Guo et al. 2025)
+have demonstrated strong reasoning capabilities across spe-
+cialized domains including medicine (Sun et al. 2025),
+mathematics (Ahn et al. 2024), and programming (El-arXiv:2508.12281v2  [cs.CL]  19 Aug 2025\n\n--- Page 2 ---\nKishky et al. 2025). Recent work has extended these ideas
+to the legal domain by distilling reasoning traces from pow-
+erful RL-trained models such as DeepSeek-V3 (Liu et al.
+2024), as in LawGPT (Zhou et al. 2025). However, these
+methods typically rely on rule-based rewards in Reinforce-
+ment Learning with Verifiable Rewards (RLVR) (Mroueh
+2025), which focus on output correctness while neglecting
+the quality and depth of the reasoning process itself. There-
+fore, how to effectively optimize Chain-of-Thought (COT)
+within the RL paradigm remains an open question.
+To address these challenges, this paper presents Legal ∆,
+a reinforcement learning framework designed to improve le-
+gal reasoning in LLMs by incorporating Chain-of-Thought
+guided Information Gain . Built upon the GRPO paradigm,
+Legal ∆introduces an information-gain based reward mech-
+anism into the RLVR setting, encouraging the model to ex-
+plore diverse reasoning trajectories and develop robust rea-
+soning strategies. Specifically, Legal ∆quantifies informa-
+tion gain by leveraging the mathematical equivalence be-
+tween model logits and Q-values in reinforcement learning.
+By comparing model responses under direct inference and
+chain-of-thought prompting, it computes confidence differ-
+entials that capture both (i) pointwise mutual information
+between reasoning steps and final answer correctness, and
+(ii) global confidence shifts indicating whether reasoning
+improves decision reliability. This reward is then used to
+guide policy optimization, pushing the model to discover
+and reinforce high-quality reasoning behaviors that balance
+accuracy and prediction confidence.
+Our experiments on various LLMs demonstrate that
+Legal ∆outperforms all baseline models, achieving approx-
+imately 10% performance improvements across multiple
+legal reasoning tasks, while also exhibiting strong gener-
+alization to out-of-domain tasks. Further analysis reveals
+that the information gain module significantly enhances
+model confidence levels through progressive logits improve-
+ments, while also reducing training batch variance for im-
+proved training efficiency and stability. Additionally, com-
+prehensive performance quality assessment demonstrates
+that Legal ∆increases the prominence of legally tokens
+and generates reasoning chains with lower perplexity scores
+at the token-level, while consistently outperforming base-
+line models across different scenarios complexities at the
+sequence-level.
+2 Related Work
+Existing legal LLMs mainly rely on Supervised Fine-Tuning
+(SFT) to help models better understand legal semantics.
+These methods usually train the models on legal corpora us-
+ing language modeling objectives. For example, models like
+LawGPT-zh (Liu et al. 2023a), HanFei (He et al. 2023), and
+Lawyer LLaMA (Huang et al. 2023) adopt SFT and com-
+bine it with the Low-Rank Adaptation (LoRA) strategy to
+improve training efficiency (Hu et al. 2022; Cui et al. 2023;
+Deng et al. 2023). One major challenge of SFT lies in the
+construction of high-quality training data. Recent work (Yue
+et al. 2023) addresses this by collecting existing publicly
+available legal datasets, crawling legal texts from the web,
+and incorporating instruction-tuning datasets (Zhang et al.2023; Huang et al. 2023; Dai et al. 2023). While these ap-
+proaches improve performance to some extent, they typi-
+cally require extensive labeled data and focus on end-to-
+end optimization over task-specific labels. As a result, SFT-
+based methods are often susceptible to overfitting and catas-
+trophic forgetting (Luo et al. 2023), which undermines the
+retention of previously acquired legal knowledge.
+To address this challenge, recent studies (Verma et al.
+2025; Vara et al. 2025) have explored Reinforcement Learn-
+ing (RL) to encourage LLMs to engage in broader explo-
+ration by specially designed reward mechanisms. Intelli-
+gent Legal Assistant (Yao et al. 2025) utilizes the cover-
+age of case elements as the reward signal to guide clari-
+fication in legal question answering. SyLeR (Zhang et al.
+2025b) addresses the lack of structured reasoning paths in
+legal question answering by introducing a structure-aware
+similarity-based reward mechanism that guides LLMs to
+construct syllogistic reasoning paths. However, its reliance
+on surface-level matching, making it difficult to capture the
+complexity and rigor of legal reasoning. Simultaneously,
+Legal Mathematical Reasoning (Zhang et al. 2025a) em-
+ploys result-oriented rewards to enhance mathematical rea-
+soning, belonging to the Reinforcement Learning with Veri-
+fiable Rewards (RLVR) framework. However, this approach
+falls short in effectively evaluating intermediate reason-
+ing quality. Therefore, we propose Legal ∆that integrates
+an information-gain-enhanced reward mechanism into the
+RLVR framework to provide fine-grained supervision for
+reasoning quality, enabling LLM to learn more reliable and
+confidence-aligned legal reasoning strategies.
+3 Methodology
+In this section, we introduce the preliminaries of legal tasks
+(Section 3.1). Then we introduce the reinforcement learning
+based legal optimization method (Section 3.2). Finally, an
+information-gain-enhanced reward mechanism is proposed,
+which is based on differential Q-value analysis to assess rea-
+soning quality (Section 3.3).
+3.1 Preliminary of LLM Reasoning in the Legal
+Tasks
+Legal reasoning is a complex cognitive process involving
+fact analysis, application of legal principles, and structured
+logical deduction. Unlike standard QA tasks, legal reason-
+ing requires multi-step analytical thinking, integration of do-
+main knowledge, and the generation of interpretable argu-
+mentation. Our framework focuses on five representative le-
+gal tasks that demand such capabilities.
+Given a legal query q, our model MLegalproduces a struc-
+tured output:
+q⇝MLegal⇝o= (r, a) (1)
+where rdenotes the step-by-step reasoning process and
+ais the final answer. This structured output ensures both
+interpretability and reliability, which are crucial in legal
+applications. We then introduce our reinforcement learn-
+ing based training strategy in Section 3.2, which equips\n\n--- Page 3 ---\nFigure 2: Illustration of Legal ∆.
+LLMs with legal reasoning capabilities. Following this, Sec-
+tion 3.3 presents an information-theoretic reward enhance-
+ment mechanism that refines RlegalintoRinfovia differen-
+tial Q-value analysis, enabling more nuanced and reasoning-
+aware reward modeling for reinforcement learning.
+3.2 Enhancing the Reasoning Capability of LLMs
+via Reinforcement Learning
+General-domain LLMs often fall short in domain-
+specific reasoning tasks. Although supervised fine-tuning
+(SFT) (Gururangan et al. 2020) can adapt models to target
+domains, it also risks overfitting and catastrophic forget-
+ting (Luo et al. 2023), thereby weakening general reasoning
+capabilities. To address this, we propose a RL-based
+training framework. The first stage employs SFT to guide
+the LLM to imitate the expert-like reasoning behaviors. The
+second stage applies reinforcement learning to further refine
+the reasoning ability based on performance feedback.
+Supervised Fine-Tuning We construct MR1-Distill via
+SFT using reasoning-enhanced legal data. Specifically, we
+leverage the high-quality reasoning chains generated by
+DeepSeek-R1 (Guo et al. 2025) to construct a dataset pair-
+ing legal queries with structured and expert-like reasoning
+steps.
+The SFT loss is defined as the standard cross-entropy loss
+over the full reasoning sequence:
+LSFT=−E(q,r,a )∼Dtrain[logPθ(r, a|q)], (2)
+where Dtrain represents the training dataset, o= (r, a)de-
+notes the complete output containing both reasoning chainand final answer, and Pθ(r, a|q)represents the probability
+of generating the complete reasoning output given the query
+and task instruction.
+Reinforcement Learning Building upon the distilled
+model, we apply Group Relative Policy Optimization
+(GRPO) (Shao et al. 2024) to further enhance the model’s
+reasoning ability. Unlike traditional RL approaches that re-
+quire separate critic models, GRPO compares intra-group
+outputs to estimate advantages, making it effective for the
+scenarios where outputs can vary widely in quality.
+Within the GRPO framework, our policy model πθgen-
+erates multiple reasoning trajectories {oi}G
+i=1for each legal
+query. Then we can use the GRPO training method to opti-
+mize LLMs:
+JGRPO (θ) =Eq∼D,{oi}G
+i=1∼πθold(·|q)"
+1
+GGX
+i=1Li(θ)#
+−βDKL(πθold||πθ),(3)
+where Li(θ) =−logπθ(oi|q)·AG
+i, and AG
+iis the group-
+wise advantage. The KL term penalizes policy shifts to
+maintain training stability.
+The effectiveness of GRPO critically depends on the qual-
+ity of reward signals. Legal ∆defines a structured reward
+function as:
+R(oi) =Rformat(oi) +Rlegal(ai), (4)
+where Rformat ensures adherence to the structured output for-
+mat, and Rlegalevaluates the correctness of the legal reason-
+ing process and conclusion.\n\n--- Page 4 ---\nFormat Reward ( Rformat(oi)):This component ensures
+outputs adhere to a structured format, with <reasoning>
+and<answer> tags separating the reasoning chain from the
+final decision. This format facilitates reward computation of
+both the reasoning process and the legal outcome.
+Legal Reward ( Rlegal(ai)):This component evaluates
+the correctness and legality of the final answer aiusing
+fine-grained, task-specific criteria. These legal criteria make
+the outcomes more verifiable and thus suitable for guiding
+GRPO-based training. Further details on the design of the
+legal reward are provided in Appendix A.3.
+3.3 Information-Gain Enhanced Legal Reward
+Modeling
+To move beyond terminal answer evaluation, we introduce
+an information-theoretic enhancement to reward design.
+Specifically, we replace the legal reward Rlegalcomponent
+withRinfofor reward modeling:
+R(oi) =Rformat(oi) +Rinfo(ai). (5)
+The reward Rinfoincorporates reasoning confidence through
+differential Q-value analysis to better evaluate the semantic
+contribution of reasoning processes in legal analysis:
+Rinfo(ai) =Rlegal(ai)×σ(∆Q·T), (6)
+where σ(·)is the sigmoid function providing bounded am-
+plification within (0,1) with monotonic enhancement proper-
+ties,∆Qdenotes the information quality differential, and T
+is the temperature parameter that controls the sensitivity of
+reward modulation for fine-grained control over training dy-
+namics. The multiplicative structure preserves the primacy
+of correctness while enabling adaptive enhancement based
+on information content.
+Recent work by Li et al. (Li et al. 2025) proves that log-
+its from next-token prediction training are mathematically
+equivalent to Q-functions in offline inverse reinforcement
+learning(see detailed proof in Appendix A.4):
+Q(q, a) =logitθ(a|q), (7)
+where Q(q, a)quantifies the expected value of generating
+answer agiven query q, and logitθ(a|q)represents the av-
+erage unnormalized log-probability scores across all tokens
+in answer awhen generated autoregressively given context
+q. This theoretical foundation enables us to extract Q-values
+directly from any pre-trained language model and design a
+differential mechanism to quantify reasoning quality. For an-
+swera, the Q-value gain given by reasoning process ris ex-
+pressed as:
+∆Q(r) =logitθ(a|q, r)−logitθ(a|q). (8)
+This formulation measures the semantic shift in the model’s
+internal representation space induced by the reasoning pro-
+cessr, providing a quantitative measure of how much the
+reasoning contributes to the model’s confidence in generat-
+ing the correct answer. We show our reasoning mode and
+direct mode prompt templates respectively in Appendix A.6.
+From an information-theoretic perspective, given that log-
+its follow the softmax probability distribution:
+pi(a) =elogitsi(a)
+Zi, (9)where Zi=P
+a′elogitsi(a′),a′is used to traverse all pos-
+sible answer tokens. Through algebraic manipulation of the
+logit difference, we obtain:
+∆Q(r) = logp(a|q, r)
+p(a|q)+ logZq,r
+Zq. (10)
+This decomposition reveals the information-theoretic inter-
+pretation of our approach.
+The first term logp(a|q,r)
+p(a|q)represents the pointwise mu-
+tual information (PMI) between the answer token aand the
+reasoning process r, measuring the correlation between the
+reasoning chain and the specific answer: a positive value in-
+dicates that the reasoning process makes this answer more
+likely, a negative value means the reasoning actually de-
+creases the probability of this answer, and zero implies no
+correlation.
+The second term logZq,r
+Zqserves as a global confidence
+regularizer that captures whether the reasoning process ren-
+hances the model’s overall decisiveness: when positive, it
+indicates that rhas sharpened the probability distribution,
+making the model more confident overall; when negative, it
+suggests the reasoning has introduced confusion. Within the
+GRPO framework, since rewards are utilized for compara-
+tive evaluation across multiple generated reasoning trajec-
+tories, the global normalization constant remains invariant
+across all candidates for the same query, allowing us to fo-
+cus on the information-theoretic signal that truly differenti-
+ates reasoning quality.
+4 Experimental Methodology
+In this section, we describe the datasets, baselines, evalua-
+tion metrics, and implementation details in our experiments.
+4.1 Datasets
+In our experiments, we select training data from portions of
+the CAIL2018 (Xiao et al. 2018), JEC QA (Zhong et al.
+2019), and LAIC2021 (Zhong et al. 2019) datasets, which
+encompass diverse legal reasoning scenarios across multi-
+ple domains. We first use 450 high-quality reasoning sam-
+ples distilled from DeepSeek-R1 to establish foundational
+legal reasoning capabilities. Subsequently, for GRPO train-
+ing of Legal ∆, we collect 6,981 samples for the training set
+and 563 samples for the validation set across all tasks in our
+experiments. We select knowledge-intensive legal reasoning
+tasks for a comprehensive assessment, including legal article
+prediction (SPP-F), criminal charge prediction (CCP), sen-
+tencing prediction (SLP), similar case analysis (CAS) and
+financial amount calculation (CAC), which demand sophis-
+ticated reasoning over legal facts and regulations. To assess
+the generalization capability of our approach, we addition-
+ally evaluate performance on the out-of-domain DiscLaw
+benchmark, which contains various legal professional exam-
+inations distinct from our training domains. Detailed dataset
+statistics can be found in the Appendix A.1.
+4.2 Baselines
+In our experiments, we compare Legal ∆with existing law
+models: Fuzi-7B (Deng et al. 2023), HanFei-7B (He et al.\n\n--- Page 5 ---\nMethodIn-Domain Out-of-Domain
+SPP-F CCP SLP CAS CACAvg.PAE NJE PFE UNGEE LBKAvg.F1 JAC F1 JAC Acc Acc Acc Acc Acc Acc Acc Acc
+Law Model
+LexiLaw-6B 13.15 13.14 39.99 35.63 8.30 20.80 35.80 23.83 23.73 20.11 31.76 31.56 40.36 29.50
+Hanfei-7B 0.26 2.65 30.96 27.38 17.10 23.60 39.40 20.19 21.19 14.53 31.76 24.38 29.09 24.19
+Fuzi-7B 25.19 27.51 55.93 49.03 15.60 0.70 47.20 31.59 26.27 24.95 33.53 28.13 40.73 30.72
+DiscLaw-13B 38.75 48.16 52.87 48.03 41.10 0.00 16.80 35.10 40.68 42.09 57.06 50.94 54.91 49.14
+ChatLaw-13B 33.28 32.55 27.90 24.54 11.60 28.80 41.40 28.58 31.36 27.56 42.35 35.62 41.09 35.60
+Qwen2.5-3B-Instruct
+Zero-shot 62.37 65.52 50.10 44.85 55.10 34.80 55.80 52.65 47.46 46.55 74.71 70.94 74.18 62.77
+SFT (DiscLaw) 68.09 64.25 43.24 38.38 45.50 39.20 46.00 49.24 38.98 43.20 61.76 53.75 57.82 51.10
+DPO 64.93 65.02 50.42 43.33 59.50 52.40 56.40 56.00 45.76 46.55 74.12 71.88 73.45 62.35
+R1-Distill 67.42 67.74 48.35 43.67 48.20 36.60 57.40 52.77 53.39 47.86 76.47 73.13 75.27 65.22
+Legal ∆ 79.13 76.20 58.59 54.15 61.90 57.40 63.20 64.37 55.08 50.09 81.76 75.63 76.00 67.71
+Qwen2.5-7B-Instruct
+Zero-shot 77.10 75.46 53.81 48.43 48.30 59.80 66.80 61.39 66.94 58.84 90.00 84.37 82.90 76.61
+SFT (DiscLaw) 72.71 67.72 41.79 37.56 51.60 38.40 55.20 52.14 47.46 42.09 68.23 55.00 62.55 55.07
+DPO 77.23 73.56 55.28 50.05 68.40 56.60 64.40 63.65 66.10 60.34 90.59 85.94 84.73 77.54
+R1-Distill 80.14 78.12 54.73 49.92 50.20 55.60 69.20 62.56 66.10 62.75 91.17 82.81 84.72 77.51
+Legal ∆ 83.14 79.68 68.53 62.90 64.80 64.80 75.80 71.38 67.80 64.43 92.94 82.19 85.09 78.49
+Qwen2.5-14B-Instruct
+Zero-shot 84.18 79.66 58.50 52.10 42.60 55.40 76.80 64.18 74.58 65.92 90.59 86.56 87.27 80.98
+SFT (DiscLaw) 81.36 77.13 55.53 49.84 37.90 52.20 68.40 60.34 42.37 44.32 62.94 51.87 58.55 52.01
+DPO 82.21 77.00 59.65 53.00 58.00 69.20 79.40 68.35 67.80 59.22 91.76 85.63 84.73 77.83
+R1-Distill 84.73 80.64 59.93 53.02 45.10 69.80 78.20 67.35 72.88 66.48 92.35 85.31 87.27 80.86
+Legal ∆ 85.56 81.10 62.79 56.95 67.10 72.40 79.40 72.19 77.12 68.90 92.35 87.19 88.73 82.86
+Table 1: Overall Performance.
+2023), LexiLaw-6B (Li et al. 2024), ChatLaw-13B (Cui
+et al. 2023), and DiscLaw-13B (Yue et al. 2024). These law
+models vary in parameter scales and capabilities, all trained
+using various training methods on diverse legal datasets. To
+ensure fair and rigorous evaluation, we reimplemented a rep-
+resentative method (DiscLaw) based on the same Qwen2.5
+series base models as our approach. Additionally, we com-
+pare with four baseline models: Zero-shot, R1-distill, DPO,
+and SFT (DiscLaw) for comprehensive evaluation. By eval-
+uating LLMs across different scales, we can systematically
+assess the generalization ability of various training strate-
+gies.
+4.3 Evaluation Metrics
+We design comprehensive evaluation metrics for different
+task types following Zhou et al. (2025); Yue et al. (2023).
+For in-domain evaluation, we employ F1 and Jaccard (JAC)
+scores for SPP-F and CCP tasks, which assess the quality
+of multi-label classification. For SLP, CAS, and CAC tasks,
+we use accuracy scores. For out-of-domain evaluation, we
+assess generalization capability using accuracy scores across
+five tasks from the DiscLaw benchmark: PAE, NJE, PFE,
+UNGEE, and LBK.
+4.4 Implementation Details
+In our experiments, we adopt the Qwen2.5-Instruct series
+due to its superior reflective capabilities and cognitively in-
+formed reasoning behavior (Gandhi et al. 2025), includingthe 3B, 7B, and 14B parameter models (Qwen et al. 2025),
+as backbone language models to ensure a comprehensive
+evaluation across different model scales. During training, we
+use a batch size of 2 per GPU and a learning rate of 5e-5. For
+LoRA fine-tuning, we use a rank of 32. We use nucleus sam-
+pling with temperature of 0.9 and generate G= 6 samples
+per prompt. For information-gain, we set a temperature of
+T= 0.2. More training implementation details of Legal ∆
+are presented in Appendix A.2.
+5 Evaluation Result
+In this section, we first evaluate the performance of var-
+ious legal LLMs on legal reasoning tasks, demonstrating
+Legal ∆’s effectiveness across different model scales and
+its generalization to out-of-domain scenarios. We then ana-
+lyze the effectiveness of our information-gain-enhanced re-
+ward modeling by examining logits variations during train-
+ing and the correlation between information gain and re-
+ward values. Following this, we conduct a comprehensive
+performance quality assessment from both token-level and
+sequence-level perspectives: at the token level, we analyze
+legal token prominence progression and assess reasoning
+chain quality through perplexity evaluation; at the sequence
+level, we examine performance improvements across differ-
+ent scenarios complexities. Additionally, we provide some
+case studies in Appendix A.5.\n\n--- Page 6 ---\n5.1 Overall Performance
+This section evaluates the legal reasoning capabilities of
+Legal ∆on both in-domain and out-of-domain tasks.
+As shown in Table 1, Legal ∆achieves consistently su-
+perior performance across different model scales and eval-
+uation settings. On in-domain legal reasoning benchmarks,
+Legal ∆outperforms all baselines, including Zero-shot, SFT
+(DiscLaw), DPO, and R1-Distill, with an average improve-
+ment of approximately 10% across Qwen2.5 models of vary-
+ing capacities. While DPO benefits from preference op-
+timization and R1-Distill leverages high-quality reasoning
+traces, Legal ∆outperforms both, especially on complex rea-
+soning tasks such as SLP and CAS.
+Furthermore, the advantages of Legal ∆extend to out-of-
+domain scenarios, where it maintains strong performance
+across diverse evaluation benchmarks. This highlights the
+generalization capability of our approach, which dynami-
+cally optimizes reasoning processes and better captures nu-
+anced legal logic by using the information-gain enhanced
+reward modeling method.
+5.2 Ablation Study
+To systematically assess the contribution of each core com-
+ponent in the Legal ∆framework, we conduct a series of ab-
+lation experiments. The results are summarized in Table 2.
+Our reinforcement learning based training strategy brings
+substantial performance gains over the vanilla baseline.
+Removing the GRPO component ( w/o GRPO ) leads to a
+marked drop in performance, highlighting the critical role of
+reinforcement learning in enabling the legal reasoning capa-
+bility of LLMs. This demonstrates that GRPO’s intra-group
+comparison mechanism effectively exploits quality differ-
+ences among reasoning trajectories, making it essential for
+optimizing legal reasoning capabilities. Similarly, the w/o
+SFT setting confirms that both SFT and RL stages are jointly
+necessary for achieving optimal performance.
+Among all components, the information-gain-enhanced
+reward mechanism contributes most significantly to perfor-
+mance improvements. To verify this, we evaluate a vari-
+ant that excludes information gain and instead relies solely
+on traditional reward signals ( w/o Info-Gain ). The resulting
+performance degradation confirms the value of incorporat-
+ing differential Q-value analysis, which enables fine-grained
+differentiation of reasoning quality. The gap between this
+variant and the full Legal ∆model underscores the effective-
+ness of our reward enhancement in capturing the subtle char-
+acteristics of high-quality legal reasoning.
+5.3 The Effectiveness of Information-Gain
+Enhanced Reward Modeling
+In this section, we analyze the effectiveness of the informa-
+tion gain module during training through two perspectives:
+(1) its influence on model confidence via logits analysis, and
+(2) its impact on training efficiency, measured by batch re-
+ward variance.
+In deep learning, logits often reflect the model’s confi-
+dence in its predictions. Higher logits indicate stronger con-
+fidence, resulting from more stable and consistent internalMethodSPP-F CCP SLP CAS CACAvg.F1 F1 Acc Acc Acc
+Qwen2.5-7B-Instruct
+Zero-shot 77.10 53.81 48.30 59.80 66.80 61.16
+Legal ∆ 83.14 68.53 64.80 64.80 75.80 71.41
+w/o SFT 84.11 62.82 72.10 62.20 69.80 70.21
+w/o GRPO 80.14 54.73 50.20 55.60 69.20 61.97
+w/o Info-Gain 84.82 62.07 61.40 60.60 72.00 68.18
+Qwen2.5-14B-Instruct
+Zero-shot 84.18 58.50 42.60 55.40 76.80 63.50
+Legal ∆ 85.56 62.79 67.10 72.40 79.40 73.45
+w/o SFT 86.40 66.85 57.30 71.60 77.60 71.95
+w/o GRPO 84.73 59.93 45.10 69.80 78.20 67.55
+w/o Info-Gain 85.09 61.69 56.20 69.60 79.80 70.48
+Table 2: Ablation Study on Legal Reasoning Tasks.
+0 100 200 300 400
+Training Steps32343638404244Average Logitsw/ Info-Gain
+w/o Info-Gain
+(a) Direct Response Scenario.
+0 100 200 300 400
+Training Steps35404550Average Logitsw/ Info-Gain
+w/o Info-Gain (b) CoT Prompting Scenario.
+Figure 3: Logit Variations Induced by Information Gain
+Module During Training Process. We monitor the average
+logits values of Legal ∆models with and without infor-
+mation gain enhancement throughout the training process.
+In Figure 3(a), the model directly answers legal questions,
+while in Figure 3(b), the model generates step-by-step rea-
+soning before providing answers.
+4 8 12
+Info Gain3.663.703.743.78Legal Reward
+(3.9, 3.671)(7.1, 3.773)(10.8, 3.785)
+Stage 1
+Stage 2
+Stage 3
+(a) Correlation between In-
+formation Gain and Reward
+across Training Stages.
+0 100 200 300 400
+Training Steps3.03.54.04.5Legal Reward Legal
+Legal w/o Info-Gain
+(b) Reward Progression Com-
+parison during Training Pro-
+cess.
+Figure 4: Analysis of Information Gain-Enhanced Reward
+Modeling Process. We collect legal rewards (LLM perfor-
+mance on legal tasks) and information gain during the train-
+ing process. In Figure 4(a), we analyze the correlation be-
+tween information gain and reward values across three dis-
+tinct training stages. In Figure 4(b), we monitor and compare
+the reward progression of Legal ∆with and without informa-
+tion gain enhancement throughout the training process.
+representations, which manifest as concentrated probabil-\n\n--- Page 7 ---\nity distributions. To evaluate confidence improvement, we
+compare the logits performance of two variants of Legal ∆,
+depending on whether the information gain module is in-
+corporated. As demonstrated in Figure 3, in direct response
+scenarios (Figure 3(a)), both models exhibit similar perfor-
+mance during early training stages. However, Legal ∆with
+information gain module progressively develops higher con-
+fidence levels, with increasingly pronounced performance
+gaps in later stages. This improvement becomes dramati-
+cally more evident in Chain-of-Thought prompting scenar-
+ios (Figure 3(b)), where Legal ∆demonstrates substantial
+and consistent logits gains throughout training while the
+baseline variant maintains relatively low confidence levels.
+The improved logit values confirm that our information
+gain mechanism successfully identifies high-quality reason-
+ing patterns. This is further supported by the positive cor-
+relation between information gain and legal reward, as il-
+lustrated in Figure 4(a), where both information gain and
+reward values demonstrate consistent growth across training
+stages. This correlation indicates that samples with higher
+information gain consistently receive higher rewards, show-
+ing that information gain provides another way to evaluate
+the quality of generated responses during GRPO training.
+Based on this positive correlation, our mechanism produces
+significant improvements in training efficiency and stabil-
+ity. As shown in Figure 4(b), Legal ∆with information gain
+enhancement maintains more stable training dynamics with
+substantially reduced reward variance compared to the base-
+line variant, creating more consistent reward signals aligned
+with reasoning quality.
+5.4 Performance Quality Assessment
+This experiment further explores the effectiveness of
+Legal ∆through performance quality assessment from both
+token-level and sequence-level perspectives.
+Token-Level Analyses We first analyze the prominence of
+legal-related tokens. Legal token prominence, defined as the
+difference between logit values for specific legal tokens and
+the average logit value across the entire sequence, serves as
+an indicator of the model’s focus on legally relevant content.
+As shown in Figure 5(a), we observe a progressive im-
+provement across training stages: starting from the Zero-
+shot baseline with mainly negative prominence values, R1-
+Distill demonstrates initial improvements through high-
+quality reasoning data distilled from a large reasoning
+model, establishing foundational capabilities for identifying
+legally relevant content. Legal ∆further advances this pro-
+gression through GRPO training, with the prominence val-
+ues becoming notably higher and more samples achieving
+positive values compared to previous stages, indicating sub-
+stantially enhanced attention to legally relevant tokens.
+We further assess the quality of reasoning chains gener-
+ated by our models through perplexity analysis for ground
+truth prediction. Specifically, we compare Legal ∆with
+and without information gain enhancement by asking each
+model to generate reasoning chains for questions and then
+feeding these reasoning chains along with questions to the
+vanilla LLM (Qwen2.5-32B-Instruct) to calculate the per-
+(a) Legal Token Prominence.
+ (b) Reasoning Quality.
+Figure 5: Token-Level Analysis. We analyze legal token
+prominence across different models using boxplots, where
+prominence indicates the model’s attention to legally rele-
+vant content. For reasoning quality evaluation, we compare
+Legal ∆with and without information gain module by as-
+sessing how well their generated chain-of-thought support
+answer prediction using LLM’s perplexity calculation.
+ModelShort Reasoning Long Reasoning
+Length Average Score Length Average Score
+Legal ∆ 222 77.41 299 73.69
+Legal ∆w/o Info-Gain 251 76.36 341 69.10
+Table 3: Response Length and Average Score Comparison
+of Legal ∆Models in Different Scenarios.
+plexity of ground truth answers. Lower perplexity indicates
+that the reasoning chain better supports the correct answer
+prediction, reflecting higher reasoning quality. As demon-
+strated in Figure 5(b), Legal ∆with information gain en-
+hancement consistently achieves lower perplexity values
+across legal reasoning tasks, with statistically significant im-
+provements confirmed by paired t-test results. This demon-
+strates that the information gain module effectively enhances
+the quality of generated reasoning chains, enabling the LLM
+to generate more accurate responses.
+Sequence-Level Analyses We further examine how the
+addition of information gain module affects reasoning qual-
+ity across different scenario complexities. We categorize
+evaluation samples based on the inherent complexity of legal
+reasoning tasks, dividing them into short and long scenar-
+ios according to the response length generated by the base-
+line model Legal ∆w/o Info-Gain. As shown in Table 3,
+Legal ∆, which incorporates the information gain module
+consistently outperforms the baseline model across both
+short and long scenarios, generating more concise responses
+with superior performance scores. Notably, the performance
+improvement margin from adding the information gain mod-
+ule is more pronounced in long scenario, demonstrating that
+this incremental enhancement is particularly effective for le-
+gal reasoning tasks that require longer chain-of-thought.
+6 Conclusions
+This paper proposes Legal ∆, a novel framework that en-
+courages the model to explore diverse reasoning trajecto-
+ries and develop robust reasoning strategies by incorporating
+chain-of-thought-guided information gain into Reinforce-
+ment Learning with Verifiable Rewards (RLVR). Experi-\n\n--- Page 8 ---\nmental results demonstrate that Legal ∆effectively balances
+direct-answer and reasoning-enhanced generation modes,
+enabling the model to produce more concise and accurate re-
+sponses. Further analysis shows that the reasoning processes
+generated by our method exhibit superior quality compared
+to baseline models, yielding significant performance gains.
+References
+Ahn, J.; Verma, R.; Lou, R.; Liu, D.; Zhang, R.; and
+Yin, W. 2024. Large language models for mathemati-
+cal reasoning: Progresses and challenges. arXiv preprint
+arXiv:2402.00157 .
+Cui, J.; Ning, M.; Li, Z.; Chen, B.; Yan, Y .; Li, H.; Ling, B.;
+Tian, Y .; and Yuan, L. 2023. Chatlaw: A multi-agent col-
+laborative legal assistant with knowledge graph enhanced
+mixture-of-experts large language model. arXiv preprint
+arXiv:2306.16092 .
+Dai, Y .; Feng, D.; Huang, J.; Jia, H.; Xie, Q.; Zhang, Y .;
+Han, W.; Tian, W.; and Wang, H. 2023. LAiW: A Chi-
+nese legal large language models benchmark. arXiv preprint
+arXiv:2310.05620 .
+Deng, W.; Pei, J.; Kong, K.; Chen, Z.; Wei, F.; Li, Y .; Ren,
+Z.; Chen, Z.; and Ren, P. 2023. Syllogistic reasoning for
+legal judgment analysis. In Proceedings of the 2023 confer-
+ence on empirical methods in natural language processing ,
+13997–14009.
+El-Kishky, A.; Wei, A.; Saraiva, A.; Minaiev, B.; Selsam, D.;
+Dohan, D.; Song, F.; Lightman, H.; Clavera, I.; Pachocki, J.;
+et al. 2025. Competitive programming with large reasoning
+models. arXiv preprint arXiv:2502.06807 .
+Gandhi, K.; Chakravarthy, A.; Singh, A.; Lile, N.; and Good-
+man, N. D. 2025. Cognitive behaviors that enable self-
+improving reasoners, or, four habits of highly effective stars.
+arXiv preprint arXiv:2503.01307 .
+Guo, D.; Yang, D.; Zhang, H.; Song, J.; Zhang, R.; Xu, R.;
+Zhu, Q.; Ma, S.; Wang, P.; Bi, X.; et al. 2025. Deepseek-r1:
+Incentivizing reasoning capability in llms via reinforcement
+learning. arXiv preprint arXiv:2501.12948 .
+Gururangan, S.; Marasovi ´c, A.; Swayamdipta, S.; Lo, K.;
+Beltagy, I.; Downey, D.; and Smith, N. A. 2020. Don’t stop
+pretraining: Adapt language models to domains and tasks.
+arXiv preprint arXiv:2004.10964 .
+He, W.; Wen, J.; Zhang, L.; Cheng, H.; Qin, B.; Li, Y .; Jiang,
+F.; Chen, J.; Wang, B.; and Yang, M. 2023. HanFei-1.0.
+https://github.com/siat-nlp/HanFei.
+Hu, E. J.; Shen, Y .; Wallis, P.; Allen-Zhu, Z.; Li, Y .; Wang,
+S.; Wang, L.; Chen, W.; et al. 2022. Lora: Low-rank adapta-
+tion of large language models. ICLR , 1(2): 3.
+Huang, Q.; Tao, M.; Zhang, C.; An, Z.; Jiang, C.; Chen, Z.;
+Wu, Z.; and Feng, Y . 2023. Lawyer llama technical report.
+arXiv preprint arXiv:2305.15062 .
+Li, H.; Ai, Q.; Dong, Q.; and Liu, Y . 2024. Lexilaw: A Scal-
+able Legal Language Model for Comprehensive Legal Un-
+derstanding.Li, Y .-C.; Xu, T.; Yu, Y .; Zhang, X.; Chen, X.-H.; Ling, Z.;
+Chao, N.; Yuan, L.; and Zhou, Z.-H. 2025. Generalist Re-
+ward Models: Found Inside Large Language Models. arXiv
+preprint arXiv:2506.23235 .
+Liu, A.; Feng, B.; Xue, B.; Wang, B.; Wu, B.; Lu, C.; Zhao,
+C.; Deng, C.; Zhang, C.; Ruan, C.; et al. 2024. Deepseek-v3
+technical report. arXiv preprint arXiv:2412.19437 .
+Liu, H.; Liao, Y .; Meng, Y .; and Wang, Y . 2023a. Lawgpt:
+Chinese legal dialogue language model. GitHub Repos.
+Liu, Y .; Wu, Y .; Zhang, Y .; Sun, C.; Lu, W.; Wu, F.; and
+Kuang, K. 2023b. Ml-ljp: Multi-law aware legal judgment
+prediction. In Proceedings of the 46th international ACM
+SIGIR conference on research and development in informa-
+tion retrieval , 1023–1034.
+Louis, A.; van Dijck, G.; and Spanakis, G. 2024. Inter-
+pretable long-form legal question answering with retrieval-
+augmented large language models. In Proceedings of
+the AAAI Conference on Artificial Intelligence , volume 38,
+22266–22275.
+Luo, Y .; Yang, Z.; Meng, F.; Li, Y .; Zhou, J.; and Zhang,
+Y . 2023. An empirical study of catastrophic forgetting in
+large language models during continual fine-tuning. arXiv
+preprint arXiv:2308.08747 .
+Mroueh, Y . 2025. Reinforcement Learning with Verifiable
+Rewards: GRPO’s Effective Loss, Dynamics, and Success
+Amplification. arXiv preprint arXiv:2503.06639 .
+Qwen; :; Yang, A.; Yang, B.; Zhang, B.; Hui, B.; Zheng, B.;
+Yu, B.; Li, C.; Liu, D.; Huang, F.; Wei, H.; Lin, H.; Yang,
+J.; Tu, J.; Zhang, J.; Yang, J.; Yang, J.; Zhou, J.; Lin, J.;
+Dang, K.; Lu, K.; Bao, K.; Yang, K.; Yu, L.; Li, M.; Xue,
+M.; Zhang, P.; Zhu, Q.; Men, R.; Lin, R.; Li, T.; Tang, T.;
+Xia, T.; Ren, X.; Ren, X.; Fan, Y .; Su, Y .; Zhang, Y .; Wan,
+Y .; Liu, Y .; Cui, Z.; Zhang, Z.; and Qiu, Z. 2025. Qwen2.5
+Technical Report. arXiv:2412.15115.
+Rabelo, J.; Goebel, R.; Kim, M.-Y .; Kano, Y .; Yoshioka, M.;
+and Satoh, K. 2022. Overview and discussion of the compe-
+tition on legal information extraction/entailment (COLIEE)
+2021. The Review of Socionetwork Strategies , 16(1): 111–
+133.
+Shao, Z.; Wang, P.; Zhu, Q.; Xu, R.; Song, J.; Bi, X.; Zhang,
+H.; Zhang, M.; Li, Y .; Wu, Y .; et al. 2024. Deepseekmath:
+Pushing the limits of mathematical reasoning in open lan-
+guage models. arXiv preprint arXiv:2402.03300 .
+Sun, Y .; Qian, X.; Xu, W.; Zhang, H.; Xiao, C.; Li, L.; Rong,
+Y .; Huang, W.; Bai, Q.; and Xu, T. 2025. ReasonMed: A
+370K Multi-Agent Generated Dataset for Advancing Medi-
+cal Reasoning. arXiv preprint arXiv:2506.09513 .
+Team, Q. 2025. Qwq-32b: Embracing the power of rein-
+forcement learning.
+Vara, N. V . D. S. S.; Raju, P.; Faruqui, N.; Patel, N.; Alec-
+soiu, O.-R.; Thatoi, P.; Alyami, S. A.; and Azad, A. 2025.
+LegalMind: Agentic AI-Driven Process Optimization and
+Cost Reduction in Legal Services Using DeepSeek. IEEE
+Access .
+Verma, J. K.; Verma, R.; Verma, B.; Arora, D.; and Singh,
+P. 2025. Context-Aware Legal Summarization using Rein-
+forcement Learning. In 2025 2nd International Conference\n\n--- Page 9 ---\non Computational Intelligence, Communication Technology
+and Networking (CICTN) , 1010–1016. IEEE.
+Xiao, C.; Zhong, H.; Guo, Z.; Tu, C.; Liu, Z.; Sun, M.;
+Feng, Y .; Han, X.; Hu, Z.; Wang, H.; et al. 2018. Cail2018:
+A large-scale legal dataset for judgment prediction. arXiv
+preprint arXiv:1807.02478 .
+Yao, R.; Wu, Y .; Zhang, T.; Zhang, X.; Huang, Y .; Wu, Y .;
+Yang, J.; Sun, C.; Wang, F.; and Liu, X. 2025. Intelligent
+Legal Assistant: An Interactive Clarification System for Le-
+gal Question Answering. In Companion Proceedings of
+the ACM on Web Conference 2025 , WWW ’25, 2935–2938.
+New York, NY , USA: Association for Computing Machin-
+ery. ISBN 9798400713316.
+Yue, S.; Chen, W.; Wang, S.; Li, B.; Shen, C.; Liu, S.; Zhou,
+Y .; Xiao, Y .; Yun, S.; Huang, X.; et al. 2023. Disc-lawllm:
+Fine-tuning large language models for intelligent legal ser-
+vices. arXiv preprint arXiv:2309.11325 .
+Yue, S.; Liu, S.; Zhou, Y .; Shen, C.; Wang, S.; Xiao, Y .; Li,
+B.; Song, Y .; Shen, X.; Chen, W.; et al. 2024. Lawllm: In-
+telligent legal system with legal reasoning and verifiable re-
+trieval. In International Conference on Database Systems
+for Advanced Applications , 304–321. Springer.
+Zeng, Y .; Wang, R.; Zeleznikow, J.; and Kemp, E. 2005.
+Knowledge representation for the intelligent legal case re-
+trieval. In International Conference on Knowledge-Based
+and Intelligent Information and Engineering Systems , 339–
+345. Springer.
+Zhang, G.; Shi, Y .; Liu, R.; Yuan, R.; Li, Y .; Dong, S.; Shu,
+Y .; Li, Z.; Wang, Z.; Lin, C.; et al. 2023. Chinese open in-
+struction generalist: A preliminary release. arXiv preprint
+arXiv:2304.07987 .
+Zhang, H.; and Dou, Z. 2023. Case retrieval for legal judg-
+ment prediction in legal artificial intelligence. In China Na-
+tional Conference on Chinese Computational Linguistics ,
+434–448. Springer.
+Zhang, K.; Xie, G.; Yu, W.; Xu, M.; Tang, X.; Li, Y .; and Xu,
+J. 2025a. Legal Mathematical Reasoning with LLMs: Proce-
+dural Alignment through Two-Stage Reinforcement Learn-
+ing. arXiv preprint arXiv:2504.02590 .
+Zhang, K.; Yu, W.; Sun, Z.; and Xu, J. 2025b. Syler: A
+framework for explicit syllogistic legal reasoning in large
+language models. arXiv preprint arXiv:2504.04042 .
+Zhong, H.; Xiao, C.; Tu, C.; Zhang, T.; Liu, Z.; and Sun,
+M. 2019. JEC-QA: A Legal-Domain Question Answering
+Dataset. arXiv:1911.12011.
+Zhou, Z.; Yu, K.-Y .; Tian, S.-Y .; Yang, X.-W.; Shi, J.-X.;
+Song, P.; Jin, Y .-X.; Guo, L.-Z.; and Li, Y .-F. 2025. Lawgpt:
+Knowledge-guided data generation and its application to le-
+gal llm. arXiv preprint arXiv:2502.06572 .A Appendix
+A.1 Dataset Statistics
+As shown in Table 4, we use datasets from CAIL2018,
+JEC QA, and LAIC2021 for training, covering five legal
+reasoning tasks. For evaluation, we conduct both in-domain
+evaluation using LawBench and LexEval benchmarks, and
+out-of-domain evaluation using six sub-tasks from the Dis-
+cLaw benchmark to assess model generalization capability.
+A.2 Training Details
+For Legal ∆, we apply LoRA to the query, key, value, out-
+put, gate, up, and down projection matrices. The maximum
+prompt length is set to 4096 tokens while maximum com-
+pletion length is set to 512tokens. We train for 1epoch for
+the 14B model and 3epochs for the other size models, us-
+ing the cosine learning rate scheduler with a warmup ratio
+of0.1. For optimization, we employ the 8-bit AdamW opti-
+mizer with β1= 0.9,β2= 0.99, and weight decay of 0.1.
+We set the maximum gradient norm to 0.1.
+A.3 Legal Reward Construction
+We design three distinct reward mechanisms based on the
+nature of expected outputs and evaluation requirements:
+F1-Score Based Reward: Provides balanced evaluation
+for multi-label scenarios:
+RF1=2×Precision ×Recall
+Precision +Recall(11)
+This mechanism effectively penalizes both incomplete re-
+sponses and excessive false positive predictions.
+Distance-Based Reward: Offers continuous evaluation
+for numerical predictions:
+Rdist= exp
+−|log(pred)−log(true)|
+c
+(12)
+where cis a normalization constant set to 36 in our exper-
+iments. This design provides partial credit for predictions
+approximating the correct range.
+Exact Match Reward: Provides strict binary evaluation
+for categorical selections:
+Rexact =1if prediction matches ground truth
+0otherwise(13)
+These mechanisms are strategically applied: RF1for
+criminal charge prediction and legal article identification,
+Rexact for financial amount calculation and multiple choice
+questions, and Rdistfor sentencing prediction with wide
+value ranges.
+A.4 Proof of Logits-Q Function Equivalence
+Given dataset D={(qi, ai)}n
+i=1, the next-token prediction
+objective is:
+arg max
+πX
+ilogπ(ai|qi) (14)
+while the offline inverse reinforcement learning objective is:
+arg max
+QX
+i"
+Q(qi, ai)−αlogX
+aeQ(qi,a)/α#
+(15)\n\n--- Page 10 ---\nTask Dataset Metric Quantity
+Training
+Article Prediction CAIL2018 F1 1,396 / 150
+Cause Prediction CAIL2018 F1 1,373 / 169
+Penalty Prediction CAIL2018 Distance 1,402 / 144
+Case Analysis JEC QA Accuracy 1,403 / 50
+Financial Calculation LAIC2021 Accuracy 1,407 / 50
+In-domain Evaluation
+Article Prediction CAIL2018 F1 500
+Cause Prediction CAIL2018 F1 500
+Penalty Prediction CAIL2018 Accuracy 1,000
+Case Analysis JEC QA Accuracy 500
+Financial Calculation LAIC2021 Accuracy 500
+Out-of-domain Evaluation
+National Judicial Exam NJE Accuracy 537
+Patent Agent Exam PAE Accuracy 118
+Graduate Entrance Exam UNGEE Accuracy 320
+Legal Basic Knowledge LBK Accuracy 275
+Public Institutions Exam PFE Accuracy 170
+Table 4: Dataset Statistics for Training and Evaluation.
+Since πθ(·|q) = softmax (fθ(q,·);α), Eq. (14) can be
+rewritten as:
+arg max
+fX
+i"
+f(qi, ai)−αlogX
+a′ef(qi,a′)/α#
+(16)
+Comparing Eq. (15) and Eq. (16), we obtain:
+Q(q, a) =f(q, a) =logitθ(a|q) (17)
+A.5 Case Study
+In Table 5, we compare the performance of Legal ∆and
+zero-shot models in analyzing a cross-border civil proce-
+dure case involving a commercial dispute between Chinese
+and German companies. The zero-shot model exhibits sev-
+eral critical limitations that significantly impair its practi-
+cal utility. The model not only conflates fundamental pro-
+cedural distinctions between domestic and international liti-
+gants—particularly by erroneously equating the 15-day ap-
+peal period for Chinese parties with the 30-day requirement
+for foreign-related cases—but also fails to recognize valid
+exceptions in litigation representation rules. These short-
+comings are further exacerbated by the model’s generation
+of verbose and unfocused legal citations, which obscures
+crucial jurisdictional differences.
+Legal ∆demonstrates markedly superior performance
+through its nuanced understanding of cross-border proce-
+dural law. The model accurately identifies and explains key
+asymmetries in legal treatment, including differentiated ap-
+peal periods and permissible representation forms. Its ana-
+lytical approach represents a significant technical advance-
+ment, employing structured reasoning to strategically high-
+light legally determinative factors while maintaining clear
+and concise arguments. This sophisticated methodology
+stems from specialized training on party-specific rules and
+exceptions in international litigation. The model’s question-
+oriented output mechanism ensures direct relevance to the
+core legal issues, avoiding the digressive tendencies char-
+acteristic of zero-shot model responses. This demonstratesthat Legal ∆possesses stronger legal reasoning capabili-
+ties, enabling it to derive correct judgments and conclusions
+through key facts.
+A.6 Prompt Template
+In this section, we introduce the prompt used in Legal ∆.
+Figure 6 presents the prompt used in direct mode. Figure 7
+indicates the prompt used with Chain of Thought during the
+rollout process.\n\n--- Page 11 ---\nCase Analysis Task on Cross-border Civil Procedure
+Criminal Fact Dayang Company, with its domicile in District A, City A of China, signed a sales contract with Kerrys Com-
+pany in Germany. The German Kerrys Company has an office established in China, and later the parties had a
+dispute over quality issues. Regarding statements about transnational civil litigation , which of the following
+options is INCORRECT ?
+A: Both parties may agree to determine the court with jurisdiction over the dispute
+B: The court may serve litigation documents to Kerrys Company’s office in China
+C: Both parties have an appeal period of 30 days
+D: Kerrys Company may appoint a lawyer from its home country to serve as a litigation representative in a
+non-lawyer capacity
+Vanilla <reasoning >Option A Analysis: According to Article 34 of the Civil Procedure Law of the People’s Re-
+public of China, parties to contract or other property rights disputes may agree in writing to choose the people’s
+court with jurisdiction at the defendant’s domicile, contract performance location, contract signing location,
+plaintiff’s domicile, or location of the subject matter that has actual connection with the dispute. Therefore, both
+parties can agree to determine the court with jurisdiction over the dispute. Option B Analysis: According to
+Article 265 of the Civil Procedure Law of the People’s Republic of China, in transnational civil litigation ,
+if the law of the country where the recipient is located allows service by mail, service by mail is permitted.
+If no service receipt is returned within three months from the date of mailing, but various circumstances suf-
+ficiently indicate delivery has occurred, it shall be deemed served upon expiration of the period. Since Kerrys
+Company has an office in China, the court can serve litigation documents to Kerrys Company’s office. Op-
+tion C Analysis: According to Article 267 of the Civil Procedure Law of the People’s Republic of China, in
+transnational civil litigation , the appeal period is 30 days. Therefore, both parties have an appeal period of
+30 days. Option D Analysis: According to Article 298 of the Civil Procedure Law of the People’s Repub-
+lic of China, when foreigners, stateless persons, foreign enterprises and organizations file lawsuits or respond
+to lawsuits in people’s courts and need to appoint lawyers for litigation representation , they must appoint
+lawyers from the People’s Republic of China. Therefore, Kerrys Company cannot appoint a lawyer from its
+home country to serve as a litigation representative in a non-lawyer capacity. Reasons for Excluding Options:
+Options A, B, and C all comply with legal provisions, while Option D does not comply with legal provi-
+sions. Correct Option Confirmation : Option D does not comply with legal provisions, therefore it is the
+incorrect option. </reasoning >
+<answer >D</answer >
+Legal ∆ <reasoning >Option A Analysis: Correct , both parties may agree to determine the court with jurisdiction .
+Option B Analysis: Correct , the court may serve documents to foreign parties at their offices in China. Option
+C Analysis: Incorrect , Chinese parties have an appeal period of 15 days , foreign parties have 30 days .
+Option D Analysis: Correct , foreign parties may appoint lawyers from their home country to serve in a non-
+lawyer capacity as representatives. Reasons for Excluding Options: Option C - Chinese citizens have 15 days ,
+foreign citizens have 30 days .Correct Option Confirmation :C</reasoning >
+<answer >C</answer >
+Table 5: Case Study\n\n--- Page 12 ---\nFigure 6: Prompt Template of Direct Mode.\n\n--- Page 13 ---\nFigure 7: Prompt Template of Reasoning Mode.\n
